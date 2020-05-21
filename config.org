@@ -1,0 +1,850 @@
+* Setup
+** Configure package sources
+Add repositories from which we'll load packages. I prefer to live on the bleeding edge so have only enabled melpa. 
+Setting =package-enable-at-startup= to =nil= prevents a second package load and slightly improves startup time.
+
+#+BEGIN_SRC emacs-lisp
+  (setq package-enable-at-startup nil)
+  (setq package-archives '(("gnu" . "http://mirrors.163.com/elpa/gnu/")
+                           ("melpa" . "https://melpa.org/packages/")
+                           ("org" . "http://orgmode.org/elpa/")))
+#+END_SRC
+
+** Bootstrap use-package
+If =use-package= is not installed, install it.
+
+#+BEGIN_SRC emacs-lisp
+  (unless (package-installed-p 'use-package)
+    (package-refresh-contents)
+    (package-install 'use-package)
+    (eval-when-compile (require 'use-package)))
+#+END_SRC
+
+** Set custom settings to load in own file
+This stops emacs adding customised settings to =init.el=. 
+I try to avoid using customize anyway, preferring programmatic control of variables. 
+Creating it as a temporary file effectively disables it (i.e. any changes are session local).
+
+#+BEGIN_SRC emacs-lisp
+  (setq custom-file (make-temp-file "emacs-custom"))
+#+END_SRC
+
+* Preferences
+** UI
+*** Theme
+ Use Doom dracula theme
+#+BEGIN_SRC emacs-lisp
+  (use-package dracula-theme
+      :ensure t
+      :init
+      (load-theme 'dracula t))
+#+END_SRC
+
+*** Hide elements
+ Hide menubar, scrollbar, toolbar, and tool-tips
+#+BEGIN_SRC emacs-lisp
+  (menu-bar-mode -1)
+  (scroll-bar-mode -1)
+  (tool-bar-mode -1)
+  (tooltip-mode -1) 
+#+END_SRC
+
+*** Line numbers
+ show line numbers
+#+BEGIN_SRC emacs-lisp
+  (global-linum-mode t)
+#+END_SRC 
+ 
+** Misc.
+*** Discover major mode
+A quick major mode help with discover-my-major
+#+BEGIN_SRC emacs-lisp
+(global-unset-key (kbd "C-h h"))        ; original "C-h h" displays "hello world" in different languages
+(define-key 'help-command (kbd "h m") 'discover-my-major)
+#+END_SRC
+
+*** Winner mode
+=winner-mode= lets one undo and redo changes in window configuration using =C-c right= and =C-c left=.
+This is handy when something has popped up a buffer that you want to look at briefly before returning to whatever you were working on. When you're done, press =C-c left=
+#+BEGIN_SRC emacs-lisp
+  (use-package winner
+    :ensure t
+    :defer t)
+#+END_SRC
+*** Prompts
+ Make the =yes or no= prompts shorter.
+
+ #+BEGIN_SRC emacs-lisp
+   (defalias 'yes-or-no-p 'y-or-n-p)
+ #+END_SRC
+*** Backups
+ A common frustration with new Emacs users is the =filename#= files created. This centralises the backup files created as you edit.
+
+ #+BEGIN_SRC emacs-lisp
+   (setq backup-directory-alist '(("." . "~/.emacs.d/backup"))
+     backup-by-copying t    ; Don't delink hardlinks
+     version-control t      ; Use version numbers on backups
+     delete-old-versions t  ; Automatically delete excess backups
+     kept-new-versions 20   ; how many of the newest versions to keep
+     kept-old-versions 5    ; and how many of the old
+     )
+ #+END_SRC
+** Editing
+*** Editing defaults
+ Set defaults for editing
+
+ #+BEGIN_SRC emacs-lisp
+   (setq global-mark-ring-max 5000         ; increase mark ring to contains 5000 entries
+         mark-ring-max 5000                ; increase kill ring to contains 5000 entries
+         mode-require-final-newline t      ; add a newline to end of file
+         )
+
+   ;; default to 4 visible spaces to display a tab
+   (setq-default tab-width 4)
+
+   (set-terminal-coding-system 'utf-8)
+   (set-keyboard-coding-system 'utf-8)
+   (set-language-environment "UTF-8")
+   (prefer-coding-system 'utf-8)
+
+   (setq-default indent-tabs-mode nil)
+   (delete-selection-mode)
+   (global-set-key (kbd "RET") 'newline-and-indent)
+
+   ;; killing
+   (setq
+    kill-ring-max 5000 ; increase kill-ring capacity
+    kill-whole-line t  ; if NIL, kill whole line and move the next line up
+    )
+
+   ;; show important whitespace in diff-mode
+   (add-hook 'diff-mode-hook (lambda ()
+                               (setq-local whitespace-style
+                                           '(face
+                                             tabs
+                                             tab-mark
+                                             spaces
+                                             space-mark
+                                             trailing
+                                             indentation::space
+                                             indentation::tab
+                                             newline
+                                             newline-mark))
+                               (whitespace-mode 1)))
+
+ #+END_SRC
+*** File defaults
+Set default values for files
+#+BEGIN_SRC emacs-lisp
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; group: Files                      ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (setq large-file-warning-threshold 100000000) ;; size in bytes
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; GROUP: Files -> Back up            ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (defvar backup-directory "~/.backups")
+  (if (not (file-exists-p backup-directory))
+      (make-directory backup-directory t))
+  (setq
+   make-backup-files t        ; backup a file the first time it is saved
+   backup-directory-alist `((".*" . ,backup-directory)) ; save backup files in ~/.backups
+   backup-by-copying t     ; copy the current file into backup directory
+   version-control t   ; version numbers for backup files
+   delete-old-versions t   ; delete unnecessary versions
+   kept-old-versions 6     ; oldest versions to keep when a new numbered backup is made (default: 2)
+   kept-new-versions 9 ; newest versions to keep when a new numbered backup is made (default: 2)
+   auto-save-default t ; auto-save every buffer that visits a file
+   auto-save-timeout 20 ; number of seconds idle time before auto-save (default: 30)
+   auto-save-interval 200 ; number of keystrokes between auto-saves (default: 300)
+   )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; GROUP: Files -> Dired              ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (setq
+   dired-dwim-target t            ; if another Dired buffer is visible in another window, use that directory as target for Rename/Copy
+   dired-recursive-copies 'always         ; "always" means no asking
+   dired-recursive-deletes 'top           ; "top" means ask once for top level directory
+   dired-listing-switches "-lha"          ; human-readable listing
+   )
+
+  ;; automatically refresh dired buffer on changes
+  (add-hook 'dired-mode-hook 'auto-revert-mode)
+
+  ;; if it is not Windows, use the following listing switches
+  (when (not (eq system-type 'windows-nt))
+    (setq dired-listing-switches "-lha --group-directories-first"))
+
+  ;;; KEY BINDINGS.
+  ;; (define-key ctl-x-map "\C-j" 'dired-jump)
+  ;; (define-key ctl-x-4-map "\C-j" 'dired-jump-other-window))
+  ;; (define-key dired-mode-map "\C-x\M-o" 'dired-omit-mode)
+  ;; (define-key dired-mode-map "*O" 'dired-mark-omitted)
+  ;; (define-key dired-mode-map "\M-(" 'dired-mark-sexp)
+  ;; (define-key dired-mode-map "*(" 'dired-mark-sexp)
+  ;; (define-key dired-mode-map "*." 'dired-mark-extension)
+  ;; (define-key dired-mode-map "\M-!" 'dired-smart-shell-command)
+  ;; (define-key dired-mode-map "\M-G" 'dired-goto-subdir)
+  ;; (define-key dired-mode-map "F" 'dired-do-find-marked-files)
+  ;; (define-key dired-mode-map "Y"  'dired-do-relsymlink)
+  ;; (define-key dired-mode-map "%Y" 'dired-do-relsymlink-regexp)
+  ;; (define-key dired-mode-map "V" 'dired-do-run-mail)
+  (require 'dired-x) ; provide extra commands for Dired
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; GROUP: Files -> Dired -> Wdired    ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; wdired allows you to edit a Dired buffer and write changes to disk
+  ;; - Switch to Wdired by C-x C-q
+  ;; - Edit the Dired buffer, i.e. change filenames
+  ;; - Commit by C-c C-c, abort by C-c C-k
+  (require 'wdired)
+  (setq
+   wdired-allow-to-change-permissions t   ; allow to edit permission bits
+   wdired-allow-to-redirect-links t       ; allow to edit symlinks
+   )
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; GROUP: Files -> Recentf            ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (recentf-mode)
+  (setq
+   recentf-max-menu-items 30
+   recentf-max-saved-items 5000
+   )
+
+#+END_SRC
+*** Customized functions
+ Define some customized functions
+ #+BEGIN_SRC emacs-lisp
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   ;; Customized functions                ;;
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   (defun prelude-move-beginning-of-line (arg)
+     "Move point back to indentation of beginning of line.
+
+   Move point to the first non-whitespace character on this line.
+   If point is already there, move to the beginning of the line.
+   Effectively toggle between the first non-whitespace character and
+   the beginning of the line.
+
+   If ARG is not nil or 1, move forward ARG - 1 lines first. If
+   point reaches the beginning or end of the buffer, stop there."
+     (interactive "^p")
+     (setq arg (or arg 1))
+
+     ;; Move lines first
+     (when (/= arg 1)
+       (let ((line-move-visual nil))
+         (forward-line (1- arg))))
+
+     (let ((orig-point (point)))
+       (back-to-indentation)
+       (when (= orig-point (point))
+         (move-beginning-of-line 1))))
+
+   (global-set-key (kbd "C-a") 'prelude-move-beginning-of-line)
+
+   (defadvice kill-ring-save (before slick-copy activate compile)
+     "When called interactively with no active region, copy a single
+   line instead."
+     (interactive
+      (if mark-active (list (region-beginning) (region-end))
+        (message "Copied line")
+        (list (line-beginning-position)
+              (line-beginning-position 2)))))
+
+   (defadvice kill-region (before slick-cut activate compile)
+     "When called interactively with no active region, kill a single
+     line instead."
+     (interactive
+      (if mark-active (list (region-beginning) (region-end))
+        (list (line-beginning-position)
+              (line-beginning-position 2)))))
+
+   ;; kill a line, including whitespace characters until next non-whiepsace character
+   ;; of next line
+   (defadvice kill-line (before check-position activate)
+     (if (member major-mode
+                 '(emacs-lisp-mode scheme-mode lisp-mode
+                                   c-mode c++-mode objc-mode
+                                   latex-mode plain-tex-mode))
+         (if (and (eolp) (not (bolp)))
+             (progn (forward-char 1)
+                    (just-one-space 0)
+                    (backward-char 1)))))
+
+   ;; taken from prelude-editor.el
+   ;; automatically indenting yanked text if in programming-modes
+   (defvar yank-indent-modes
+     '(LaTeX-mode TeX-mode)
+     "Modes in which to indent regions that are yanked (or yank-popped).
+   Only modes that don't derive from `prog-mode' should be listed here.")
+
+   (defvar yank-indent-blacklisted-modes
+     '(python-mode slim-mode haml-mode)
+     "Modes for which auto-indenting is suppressed.")
+
+   (defvar yank-advised-indent-threshold 1000
+     "Threshold (# chars) over which indentation does not automatically occur.")
+
+   (defun yank-advised-indent-function (beg end)
+     "Do indentation, as long as the region isn't too large."
+     (if (<= (- end beg) yank-advised-indent-threshold)
+         (indent-region beg end nil)))
+
+   (defadvice yank (after yank-indent activate)
+     "If current mode is one of 'yank-indent-modes,
+   indent yanked text (with prefix arg don't indent)."
+     (if (and (not (ad-get-arg 0))
+              (not (member major-mode yank-indent-blacklisted-modes))
+              (or (derived-mode-p 'prog-mode)
+                  (member major-mode yank-indent-modes)))
+         (let ((transient-mark-mode nil))
+           (yank-advised-indent-function (region-beginning) (region-end)))))
+
+   (defadvice yank-pop (after yank-pop-indent activate)
+     "If current mode is one of `yank-indent-modes',
+   indent yanked text (with prefix arg don't indent)."
+     (when (and (not (ad-get-arg 0))
+                (not (member major-mode yank-indent-blacklisted-modes))
+                (or (derived-mode-p 'prog-mode)
+                    (member major-mode yank-indent-modes)))
+       (let ((transient-mark-mode nil))
+         (yank-advised-indent-function (region-beginning) (region-end)))))
+
+   ;; prelude-core.el
+   (defun prelude-duplicate-current-line-or-region (arg)
+     "Duplicates the current line or region ARG times.
+   If there's no region, the current line will be duplicated. However, if
+   there's a region, all lines that region covers will be duplicated."
+     (interactive "p")
+     (pcase-let* ((origin (point))
+                  (`(,beg . ,end) (prelude-get-positions-of-line-or-region))
+                  (region (buffer-substring-no-properties beg end)))
+       (-dotimes arg
+         (lambda (n)
+           (goto-char end)
+           (newline)
+           (insert region)
+           (setq end (point))))
+       (goto-char (+ origin (* (length region) arg) arg))))
+
+   ;; prelude-core.el
+   (defun indent-buffer ()
+     "Indent the currently visited buffer."
+     (interactive)
+     (indent-region (point-min) (point-max)))
+
+   ;; prelude-editing.el
+   (defcustom prelude-indent-sensitive-modes
+     '(coffee-mode python-mode slim-mode haml-mode yaml-mode)
+     "Modes for which auto-indenting is suppressed."
+     :type 'list)
+
+   (defun indent-region-or-buffer ()
+     "Indent a region if selected, otherwise the whole buffer."
+     (interactive)
+     (unless (member major-mode prelude-indent-sensitive-modes)
+       (save-excursion
+         (if (region-active-p)
+             (progn
+               (indent-region (region-beginning) (region-end))
+               (message "Indented selected region."))
+           (progn
+             (indent-buffer)
+             (message "Indented buffer.")))
+         (whitespace-cleanup))))
+
+   (global-set-key (kbd "C-c i") 'indent-region-or-buffer)
+
+   ;; add duplicate line function from Prelude
+   ;; taken from prelude-core.el
+   (defun prelude-get-positions-of-line-or-region ()
+     "Return positions (beg . end) of the current line
+   or region."
+     (let (beg end)
+       (if (and mark-active (> (point) (mark)))
+           (exchange-point-and-mark))
+       (setq beg (line-beginning-position))
+       (if mark-active
+           (exchange-point-and-mark))
+       (setq end (line-end-position))
+       (cons beg end)))
+
+   (defun kill-default-buffer ()
+     "Kill the currently active buffer -- set to C-x k so that users are not asked which buffer they want to kill."
+     (interactive)
+     (let (kill-buffer-query-functions) (kill-buffer)))
+
+   (global-set-key (kbd "C-x k") 'kill-default-buffer)
+
+   ;; smart openline
+   (defun prelude-smart-open-line (arg)
+     "Insert an empty line after the current line.
+   Position the cursor at its beginning, according to the current mode.
+   With a prefix ARG open line above the current line."
+     (interactive "P")
+     (if arg
+         (prelude-smart-open-line-above)
+       (progn
+         (move-end-of-line nil)
+         (newline-and-indent))))
+
+   (defun prelude-smart-open-line-above ()
+     "Insert an empty line above the current line.
+   Position the cursor at it's beginning, according to the current mode."
+     (interactive)
+     (move-beginning-of-line nil)
+     (newline-and-indent)
+     (forward-line -1)
+     (indent-according-to-mode))
+
+   (global-set-key (kbd "C-o") 'prelude-smart-open-line)
+   (global-set-key (kbd "M-o") 'open-line)
+
+ #+END_SRC
+*** duplicate-thing
+Easy duplicate current line
+
+#+BEGIN_SRC emacs-lisp
+  (use-package duplicate-thing
+    :ensure t
+    :config
+    (global-set-key (kbd "M-c") 'duplicate-thing)
+  )
+
+#+END_SRC
+* General
+** Interface
+*** Suggest next key
+*** Use ibuffer
+ Use iBuffer
+#+BEGIN_SRC emacs-lisp
+ (global-set-key (kbd "C-x C-b") 'ibuffer)
+#+END_SRC
+*** Org-mode
+
+Define shortcuts for storing links and agenda, define location for agenda files
+#+BEGIN_SRC emacs-lisp
+(require 'org)
+(define-key global-map "\C-cl" 'org-store-link)
+(define-key global-map "\C-ca" 'org-agenda)
+(setq org-log-done t)
+(setq org-agenda-files (list "~/org/work.org"
+                             "~/org/school.org" 
+                             "~/org/home.org"))
+#+END_SRC
+*** Smartparens
+ Use smartparens
+#+BEGIN_SRC emacs-lisp
+   (use-package smartparens
+     :bind
+    (("C-M-a" . sp-beginning-of-sexp)
+    ("C-M-e" . sp-end-of-sexp)
+
+    ("C-<down>" . sp-down-sexp)
+    ("C-<up>"   . sp-up-sexp)
+    ("M-<down>" . sp-backward-down-sexp)
+    ("M-<up>"   . sp-backward-up-sexp)
+
+    ("C-M-f" . sp-forward-sexp)
+    ("C-M-b" . sp-backward-sexp)
+
+    ("C-M-n" . sp-next-sexp)
+    ("C-M-p" . sp-previous-sexp)
+
+    ("C-S-f" . sp-forward-symbol)
+    ("C-S-b" . sp-backward-symbol)
+
+    ("C-<right>" . sp-forward-slurp-sexp)
+    ("M-<right>" . sp-forward-barf-sexp)
+    ("C-<left>"  . sp-backward-slurp-sexp)
+    ("M-<left>"  . sp-backward-barf-sexp)
+
+    ("C-M-t" . sp-transpose-sexp)
+    ("C-M-k" . sp-kill-sexp)
+    ("C-k"   . sp-kill-hybrid-sexp)
+    ("M-k"   . sp-backward-kill-sexp)
+    ("C-M-w" . sp-copy-sexp)
+    ("C-M-d" . delete-sexp)
+
+    ("M-<backspace>" . backward-kill-word)
+    ("C-<backspace>" . sp-backward-kill-word)
+    ([remap sp-backward-kill-word] . backward-kill-word)
+
+    ("M-[" . sp-backward-unwrap-sexp)
+    ("M-]" . sp-unwrap-sexp)
+
+    ("C-x C-t" . sp-transpose-hybrid-sexp)
+
+    ("C-c ("  . wrap-with-parens)
+    ("C-c ["  . wrap-with-brackets)
+    ("C-c {"  . wrap-with-braces)
+    ("C-c '"  . wrap-with-single-quotes)
+    ("C-c \"" . wrap-with-double-quotes)
+    ("C-c _"  . wrap-with-underscores)
+    ("C-c `"  . wrap-with-back-quotes))
+     :ensure t
+     :diminish smartparens-mode
+     :config
+     (add-hook 'prog-mode-hook 'smartparens-mode))
+
+#+END_SRC
+**** Volatile highlights
+
+Highlight parenteses pairs
+#+BEGIN_SRC emacs-lisp
+  (use-package volatile-highlights
+    :ensure t)
+#+END_SRC
+
+**** Rainbow-delimiters
+Highlight parens etc. for improved readability.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package rainbow-delimiters
+    :ensure t
+    :hook
+    (prog-mode . rainbow-delimiters-mode))
+#+END_SRC
+
+*** Easier selection
+=expand-region= expands the region around the cursor semantically depending on mode. 
+
+#+BEGIN_SRC emacs-lisp
+  (use-package expand-region
+    :ensure t
+    :bind ("C-=" . er/expand-region))
+#+END_SRC
+
+
+** customized-functions
+** setup-editing
+
+** Tramp
+Use SSH for remote editing by default
+
+#+BEGIN_SRC emacs-lisp
+(setq tramp-default-method "ssh")
+#+END_SRC
+
+** Flycheck
+
+#+BEGIN_SRC emacs-lisp
+  (use-package flycheck
+    :ensure t
+    :config
+    (add-hook 'after-init-hook 'global-flycheck-mode))
+#+END_SRC
+*** Flycheck-tip
+
+#+BEGIN_SRC emacs-lisp
+  (use-package flycheck-tip
+    :ensure t
+    :commands 'flycheck-tip-cycle
+    :after flycheck
+    :bind (:map flycheck-mode-map
+                ("C-c C-n" . flycheck-tip-cycle)))
+#+END_SRC
+
+* Convenience
+** Which-key
+
+Use which-key to make discovering keys easier
+
+#+BEGIN_SRC emacs-lisp
+  (use-package which-key
+    :diminish which-key-mode
+    :ensure t
+    :hook (after-init . which-key-mode))
+#+END_SRC
+
+** Helm
+Use Helm for interactive completion
+#+BEGIN_SRC emacs-lisp
+  (use-package helm
+    :ensure t
+    :diminish helm-mode
+    :init
+    (progn
+      (require 'helm-config)
+      (setq helm-autoresize-max-height 0
+            helm-autoresize-min-height 20
+            helm-split-window-in-side-p           t ; open helm buffer inside current window, not occupy whole other window
+            helm-move-to-line-cycle-in-source     t ; move to end or beginning of source when reaching top or bottom of source.
+            helm-ff-search-library-in-sexp        t ; search for library in `require' and `declare-function' sexp.
+            helm-scroll-amount                    8 ; scroll 8 lines other window using M-<next>/M-<prior>
+            helm-ff-file-name-history-use-recentf t
+            helm-echo-input-in-header-line t)
+      (helm-mode))
+    :bind (("C-c h" . helm-command-prefix)
+           ("<tab>" . helm-execute-persistent-action) ; tab autocomplete
+           ("C-i" . helm-execute-persistent-action) ; tab autocomplete in terminal
+           ("C-z" . helm-select-action) ; list actions using C-z
+           ("M-x" . helm-M-x)
+           ("M-y" . helm-show-kill-ring)
+           ("C-x b" . helm-mini)
+           ("C-h a" . helm-apropos)
+           ("C-x C-f" . helm-find-files)
+           ("C-c h o" . helm-occur)
+           ("C-h SPC" . helm-all-mark-rings)
+           ("C-c h x" . helm-register)
+           ("C-c h M-:" . helm-eval-expression-with-eldoc)
+           ("C-c C-l" . helm-minibuffer-history))
+  )
+#+END_SRC
+
+Use helm for eshell history
+#+BEGIN_SRC emacs-lisp
+  (require 'helm-eshell)
+
+  (add-hook 'eshell-mode-hook
+            #'(lambda ()
+                (define-key eshell-mode-map (kbd "C-c C-l")  'helm-eshell-history)))
+
+#+END_SRC
+
+Helm descbinds
+#+BEGIN_SRC emacs-lisp
+  (use-package helm-descbinds
+    :ensure t
+    :defer t
+    :bind (("C-h b" . helm-descbinds)
+           ("C-h w" . helm-descbinds)))
+#+END_SRC
+
+** Projectile
+Use projectile to manage projects
+#+BEGIN_SRC emacs-lisp
+  (use-package projectile
+    :ensure t
+    :diminish projectile-mode
+    :config
+    (define-key projectile-mode-map (kbd "s-p") 'projectile-command-map)
+    (define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
+    (projectile-mode +1)
+    (setq projectile-completion-system 'helm)
+    (setq projectile-enable-caching t)
+    (setq projectile-indexing-method 'alien)
+    (add-to-list 'projectile-globally-ignored-files "node-modules")
+    :config
+    (projectile-mode +1)
+    (helm-projectile-on)
+    ;; use helm in find file
+    (setq projectile-switch-project-action 'helm-projectile)
+    )
+  (use-package helm-projectile
+    :ensure t)
+#+END_SRC
+
+* Development
+** Treemacs
+Use Treemacs to have file explorer like in IDE's
+
+#+BEGIN_SRC emacs-lisp
+  (use-package treemacs
+    :ensure t
+    :defer t
+    :init
+    (with-eval-after-load 'winum
+      (define-key winum-keymap (kbd "M-0") #'treemacs-select-window))
+    :config
+    (progn
+      (setq treemacs-collapse-dirs                 (if treemacs-python-executable 3 0)
+            treemacs-deferred-git-apply-delay      0.5
+            treemacs-directory-name-transformer    #'identity
+            treemacs-display-in-side-window        t
+            treemacs-eldoc-display                 t
+            treemacs-file-event-delay              5000
+            treemacs-file-extension-regex          treemacs-last-period-regex-value
+            treemacs-file-follow-delay             0.2
+            treemacs-file-name-transformer         #'identity
+            treemacs-follow-after-init             t
+            treemacs-git-command-pipe              ""
+            treemacs-goto-tag-strategy             'refetch-index
+            treemacs-indentation                   2
+            treemacs-indentation-string            " "
+            treemacs-is-never-other-window         nil
+            treemacs-max-git-entries               5000
+            treemacs-missing-project-action        'ask
+            treemacs-move-forward-on-expand        nil
+            treemacs-no-png-images                 nil
+            treemacs-no-delete-other-windows       t
+            treemacs-project-follow-cleanup        nil
+            treemacs-persist-file                  (expand-file-name ".cache/treemacs-persist" user-emacs-directory)
+            treemacs-position                      'left
+            treemacs-recenter-distance             0.1
+            treemacs-recenter-after-file-follow    nil
+            treemacs-recenter-after-tag-follow     nil
+            treemacs-recenter-after-project-jump   'always
+            treemacs-recenter-after-project-expand 'on-distance
+            treemacs-show-cursor                   nil
+            treemacs-show-hidden-files             t
+            treemacs-silent-filewatch              nil
+            treemacs-silent-refresh                nil
+            treemacs-sorting                       'alphabetic-asc
+            treemacs-space-between-root-nodes      t
+            treemacs-tag-follow-cleanup            t
+            treemacs-tag-follow-delay              1.5
+            treemacs-user-mode-line-format         nil
+            treemacs-width                         35)
+
+      ;; The default width and height of the icons is 22 pixels. If you are
+      ;; using a Hi-DPI display, uncomment this to double the icon size.
+      ;;(treemacs-resize-icons 44)
+
+      (treemacs-follow-mode t)
+      (treemacs-filewatch-mode t)
+      (treemacs-fringe-indicator-mode t)
+      (pcase (cons (not (null (executable-find "git")))
+                   (not (null treemacs-python-executable)))
+        (`(t . t)
+         (treemacs-git-mode 'deferred))
+        (`(t . _)
+         (treemacs-git-mode 'simple))))
+    :bind
+    (:map global-map
+          ("M-0"       . treemacs-select-window)
+          ("C-x t 1"   . treemacs-delete-other-windows)
+          ("C-x t t"   . treemacs)
+          ("C-x t B"   . treemacs-bookmark)
+          ("C-x t C-t" . treemacs-find-file)
+          ("C-x t M-t" . treemacs-find-tag)))
+
+  (use-package treemacs-projectile
+    :after treemacs projectile
+    :ensure t)
+
+  (use-package treemacs-icons-dired
+    :after treemacs dired
+    :ensure t
+    :config (treemacs-icons-dired-mode))
+
+  (use-package treemacs-magit
+    :after treemacs magit
+    :ensure t)
+
+  (use-package treemacs-persp
+    :after treemacs persp-mode
+    :ensure t
+    :config (treemacs-set-scope-type 'Perspectives))
+
+#+END_SRC
+
+** Lsp-mode
+
+Use lsp-mode to have linting, error checking and autocomplete
+
+#+BEGIN_SRC emacs-lisp
+  (setq lsp-keymap-prefix "C-c l")
+
+  (use-package lsp-mode
+    :ensure t
+    :hook (
+           (prog-mode . lsp)
+           (lsp-mode . lsp-enable-which-key-integration))
+    :bind
+    (:map lsp-mode-map
+          ("C-c m"   . helm-imenu))
+    :commands lsp)
+
+  ;; use lsp-ui
+  (use-package lsp-ui
+    :ensure t
+    :requires lsp-mode flycheck
+    :config
+
+    (setq lsp-ui-doc-enable t
+          lsp-ui-doc-use-childframe t
+          lsp-ui-doc-position 'top
+          lsp-ui-doc-include-signature t
+          lsp-ui-sideline-enable nil
+          lsp-ui-flycheck-enable t
+          lsp-ui-flycheck-list-position 'right
+          lsp-ui-flycheck-live-reporting t
+          lsp-ui-peek-enable t
+          lsp-ui-peek-list-width 60
+          lsp-ui-peek-peek-height 25)
+
+    :hook
+    (lsp-mode . lsp-ui-mode))
+
+  ;; use optional things
+  (use-package helm-lsp
+    :ensure t
+    :commands helm-lsp-workspace-symbol
+    )
+
+  (use-package lsp-treemacs
+    :ensure t
+    :commands lsp-treemacs-errors-list
+    )
+
+  (use-package which-key
+    :ensure t
+    :config
+    (which-key-mode))
+
+  ;; company
+  (use-package company
+    :ensure t
+    :config
+    (setq company-idle-delay 0.3)
+    (global-company-mode 1)
+    (global-set-key (kbd "C-<tab>") 'company-complete))
+
+  (use-package company-lsp
+    :ensure t
+    :requires company
+    :config
+    (push 'company-lsp company-backends)
+
+    ;; Disable client-side cache because the LSP server does a better job.
+    (setq company-transformers nil
+          company-lsp-async t
+          company-lsp-cache-candidates nil)
+    )
+
+  (with-eval-after-load 'lsp-mode
+    (add-hook 'lsp-mode-hook #'lsp-enable-which-key-integration))
+
+#+END_SRC
+
+** org-mode
+** Magit
+
+Use Magit
+#+BEGIN_SRC emacs-lisp
+  (use-package magit
+    :ensure t
+    :bind
+    ("C-x g h" . magit-log)
+    ("C-x g f" . magit-file-log)
+    ("C-x g b" . magit-blame-mode)
+    ("C-x g n" . magit-branch-manager)
+    ("C-x g c" . magit-branch)
+    ("C-x g s" . magit-status)
+    ("C-x g r" . magit-reflog)
+    ("C-x g t" . magit-tag)
+    :config
+    ;; full screen magit-status
+    (defadvice magit-status (around magit-fullscreen activate)
+      (window-configuration-to-register :magit-fullscreen)
+      ad-do-it
+      (delete-other-windows))
+
+    (set-default 'magit-stage-all-confirm nil)
+    :init
+    (add-hook 'magit-mode-hook 'magit-load-config-extensions)
+    )
+#+END_SRC
+** Git-Timemachine
+TimeMachine lets us step through the history of a file as recorded in git.
+
+#+BEGIN_SRC emacs-lisp
+  (use-package git-timemachine
+    :ensure t)
+#+END_SRC
